@@ -1,0 +1,286 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Chat App</title>
+    <style>
+body {
+  background-image: linear-gradient(
+    23deg,
+    hsl(49deg 100% 69%) 0%,
+    hsl(16deg 80% 61%) 2%,
+    hsl(330deg 81% 34%) 12%,
+    hsl(259deg 100% 15%) 50%,
+    hsl(212deg 100% 25%) 88%,
+    hsl(197deg 100% 30%) 98%,
+    hsl(183deg 79% 36%) 100%
+  );
+  height: 100vh;
+  overflow: hidden;
+}
+
+.button {
+  border: none;
+  padding: 0.625em;
+  border-radius: 0.5em;
+  cursor: pointer;
+}
+
+.button:hover {
+  filter: brightness(0.9);
+}
+
+.button:active {
+  transform: translateY(2px);
+}
+
+.person-selector {
+  display: flex;
+  justify-content: center;
+  gap: 1em;
+  margin: 3em auto 1em;
+  max-width: 40em;
+}
+
+.person-selector-button {
+  width: 100%;
+  background-color: #15202b;
+  color: #fff;
+  font-size: 1.1em;
+}
+
+.active-person {
+  background: #08529d;
+  box-shadow: 0 0 0.5em 0.1em #c3c3c333;
+}
+
+.chat-container {
+  background: #15202b;
+  font-family: 'Roboto', sans-serif;
+  border-radius: 0.5em;
+  padding: 0.5em 1.25em;
+  margin: auto;
+  max-width: 37.5em;
+  height: 37.5em;
+  box-shadow: 0 0 1.25em 0.5em #c3c3c333;
+}
+
+.chat-header {
+  margin-bottom: 1em;
+  color: #fff;
+}
+
+.chat-header h2 {
+  font-size: 1.25em;
+  font-weight: bold;
+}
+
+.chat-messages {
+  height: 23em;
+  overflow-y: scroll;
+}
+
+.chat-messages::-webkit-scrollbar {
+  display: none;
+}
+
+.message {
+  padding: 0.625em;
+  border-radius: 1em;
+  margin-bottom: 0.625em;
+  display: flex;
+  flex-direction: column;
+  color: #fff;
+}
+
+.message-sender {
+  font-weight: bold;
+  margin-bottom: 0.31em;
+}
+
+.message-text {
+  font-size: 1em;
+  margin-bottom: 0.31em;
+  word-wrap: break-word;
+}
+
+.message-timestamp {
+  font-size: 0.75em;
+  text-align: right;
+}
+
+.blue-bg {
+  background-color: #1c9bef;
+}
+
+.gray-bg {
+  background-color: #3d5365;
+}
+
+.chat-input-form {
+  display: flex;
+  align-items: center;
+  margin-top: 2em;
+  gap: 0.625em;
+}
+
+.chat-input {
+  padding: 0.625em;
+  border: none;
+  border-radius: 0.5em;
+  background-color: #f5f5f5;
+  color: #333;
+  font-size: 1em;
+  flex-grow: 1;
+}
+
+.send-button {
+  background-color: #1c9bef;
+  color: #fff;
+  font-size: 1em;
+  font-weight: bold;
+}
+
+.clear-chat-button {
+  display: block;
+  margin: 2.5em auto;
+}
+    </style>
+  </head>
+  <body>
+    <div class="person-selector">
+      <span class = "button" style="color: white;">Name:</span>
+      <input class="button person-selector-button active-person" id="name-input" value="User Name"/>
+    </div>
+    <div class="chat-container">
+        <h2 class="chat-header">Not So Live Chat</h2>
+        <div class="chat-messages"></div>
+      <form class="chat-input-form">
+        <input type="text" class="chat-input" required placeholder="Type here..." />
+        <button type="submit" class="button send-button">Send</button>
+      </form>
+      <button class="button clear-chat-button">Clear Chat</button>
+    </div>
+
+    <script>
+const nameInput = document.querySelector('#name-input')
+const chatMessages = document.querySelector('.chat-messages')
+const chatInputForm = document.querySelector('.chat-input-form')
+const chatInput = document.querySelector('.chat-input')
+const clearChatBtn = document.querySelector('.clear-chat-button')
+
+async function Hammer(url,channel,uid){
+    var clientId = uid;
+    if(clientId==null){
+        const response = await fetch(url+'/gen_id.php');
+        const json = await response.json();
+        clientId = json.id;
+    }
+
+    function send(t, m){
+        fetch(`${url}/send.php?c=${channel}`,{method: 'POST', body: JSON.stringify({f:clientId,t:t,m:m})});
+    }
+
+    async function recv(l){
+        //console.log('Opeaning fetch request');
+        const response = await fetch(`${url}/listen.php?c=${channel}&i=${clientId}&l=${l}&f=`);
+        const json = await response.json();
+        return json;
+    }
+
+    function getId(){
+        return clientId;
+    }
+
+    return {recv:recv,send:send,getId:getId};
+};
+
+const createChatMessageElement = (message,sender) => `
+  <div class="message ${sender ? 'blue-bg' : 'gray-bg'}">
+    <div class="message-sender">${message.sender}</div>
+    <div class="message-text">${message.text}</div>
+    <div class="message-timestamp">${message.timestamp}</div>
+  </div>
+`
+
+async function sleep(ms) {
+    return new Promise((resolve) =>setTimeout(resolve, ms));
+}
+
+
+(function () {
+    Hammer('https://message-tunnel.000webhostapp.com','test-msg').then(async h=>{
+
+const updateMessageSender = (name) => {
+  chatInput.focus()
+}
+
+const sendMessage = (e) => {
+  e.preventDefault()
+
+  const timestamp = new Date().toLocaleString('en-US', { hour: 'numeric', minute: 'numeric', hour12: true })
+  const message = {
+    sender: nameInput.value,
+    text: chatInput.value,
+    timestamp,
+  }
+  h.send('',message);
+  chatMessages.innerHTML += createChatMessageElement(message,true);
+  chatInputForm.reset();
+  chatMessages.scrollTop = chatMessages.scrollHeight;
+}
+
+chatInputForm.addEventListener('submit', sendMessage)
+
+function clear(){
+  chatMessages.innerHTML = '';
+}
+
+clearChatBtn.addEventListener('click', () => {
+  clear()
+})
+
+var lastid = -1;//server id
+var lastcid = -1;//text id
+var c = -1;
+while(true){
+  try{
+      var r = await h.recv(lastid);
+      //console.log(r);
+      if(!r.success)continue;
+      //we care about last state only
+      last=r.ret[r.ret.length-1];
+      //console.log(last);
+      var messages = [];
+      //if (lastid>last.ID)clear();
+      for(let i in last.M.m){
+        if(last.M.m.length==1){
+          clear();
+          lastcid=-2;
+        };
+        if(last.M.m[i].ID>lastcid){
+          if(last.M.m[i].F!=h.getId()){
+            messages.push(last.M.m[i]);
+            c=last.M.m[i].c;
+            lastcid=last.M.m[i].ID;
+          }
+        }
+      }
+      lastid = last.ID;
+      for(let i in messages){
+        //console.log(messages[i]);
+        chatMessages.innerHTML += createChatMessageElement(messages[i].M,false);
+      }
+      if(messages.length!=0)chatMessages.scrollTop = chatMessages.scrollHeight;
+      //console.log(messages);
+    }catch(e){
+      console.log(e);
+      await sleep(500);//if error wait for next req
+  };
+};
+
+})})();
+    </script>
+  </body>
+</html>

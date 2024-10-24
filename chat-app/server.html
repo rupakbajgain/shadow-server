@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <title>Live chat server</title>
+        <script>
+        </script>
+    </head>
+    <body>
+        <div id="log"></div>
+        <script>
+
+async function Hammer(url,channel,uid){
+    function send(t, m){
+        fetch(`${url}/send.php?c=${channel}`,{method: 'POST', body: JSON.stringify({f:'',t,m})});
+    }
+
+    async function recv(){
+        //console.log('Opeaning fetch request');
+        const response = await fetch(`${url}/listen.php?c=${channel}`);
+        const json = await response.json();
+        return json;
+    }
+
+    return {recv,send};
+};
+
+(function () {
+    var logger = document.getElementById('log');
+    log = function (message) {
+        if (typeof message == 'object') {
+            logger.innerHTML += (JSON && JSON.stringify ? JSON.stringify(message) : message) + '<br />';
+        } else {
+            logger.innerHTML += message + '<br />';
+        }
+    }
+
+async function sleep(ms) {
+    return new Promise((resolve) =>setTimeout(resolve, ms));
+}
+
+log('Initing server');
+const timestamp = new Date().toLocaleString('en-US', { hour: 'numeric', minute: 'numeric', hour12: true })
+var messages = [{ID:-1,c:-1,F:'',T:'*',M:{sender:'Server',text:'Welcome to chat!',timestamp}}];
+var server_count = 0;
+Hammer('https://message-tunnel.000webhostapp.com','test-msg','').then(async h=>{
+    log('connected!...');
+    h.send('*',{m:messages});
+    //server loop
+    while(true){
+        try{
+            var r = await h.recv();
+            if(!r.success)continue;
+            //console.log(r);
+            for(var i in r.ret){
+                //console.log(r.ret[i]);
+                r.ret[i].c = (server_count+=1);
+                messages.push(r.ret[i]);
+                if(messages.length>10){
+                    messages.shift();
+                }
+            }
+            h.send('*',{m:messages});
+            log('updating');
+            //log(messages);
+        }catch(e){
+            console.log(e);
+            await sleep(500);//if error wait for next req
+        };
+    };
+//    setInterval(()=>h2.send('*','hello2'),1000);
+});
+})();
+        </script>
+    </body>
+</html>
